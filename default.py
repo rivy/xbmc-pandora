@@ -57,7 +57,7 @@ class My_Pandora( Pandora ):
 
 	def set_proxy(self, proxy):
 		if proxy:
-			proxy_handler = urllib2.ProxyHandler({'http': proxy})
+			proxy_handler = urllib2.ProxyHandler({'http': proxy, 'https': proxy})
 			self.opener = urllib2.build_opener(proxy_handler)
 			## _or_ set_url_opener()
 			#self.set_url_opener( urllib2.build_opener(proxy_handler) )
@@ -105,7 +105,10 @@ class Panda:
 				"user" : self.settings.getSetting( "proxy_user" ),
 				"pass" : self.settings.getSetting( "proxy_pass" )
 			}
-			self.pandora.set_proxy( "http://%(user)s:%(pass)s@%(host)s:%(port)s" % proxy_info )
+			if proxy_info.get("user"):
+				self.pandora.set_proxy("{user}:{pass}@{host}:{port}".format(**proxy_info))
+			else:
+				self.pandora.set_proxy("{host}:{port}".format(**proxy_info))
 
 		while not self.auth():
 			resp = xbmcgui.Dialog().yesno( _NAME, \
@@ -188,7 +191,7 @@ class Panda:
 			else:
 				item.setProperty( "Rating", "" )
 			info = {
-				 "title"	:	song.title, \
+				 "title"	:	song.songName,\
 				 "artist"	:	song.artist, \
 				 "album"	:	song.album, \
 				}
@@ -198,7 +201,7 @@ class Panda:
 				info["duration"] = duration
 			log( "item info = %s" % info, xbmc.LOGDEBUG )
 			item.setInfo( "music", info )
-			items.append( ( song.audioUrl, item, song ) )
+			items.append((song.additionalAudioUrl, item, song))
 
 		self.playlist.extend( items )
 
