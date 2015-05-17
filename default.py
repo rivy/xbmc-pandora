@@ -1,7 +1,8 @@
 import xbmcgui
 import xbmc
 import xbmcaddon
-import os, sys
+import os
+import sys
 
 _settings   = xbmcaddon.Addon()
 _name       = _settings.getAddonInfo('name')
@@ -57,7 +58,7 @@ class My_Pandora( Pandora ):
 
 	def set_proxy(self, proxy):
 		if proxy:
-			proxy_handler = urllib2.ProxyHandler({'http': proxy})
+			proxy_handler = urllib2.ProxyHandler({'http': proxy, 'https': proxy})
 			self.opener = urllib2.build_opener(proxy_handler)
 			## _or_ set_url_opener()
 			#self.set_url_opener( urllib2.build_opener(proxy_handler) )
@@ -105,12 +106,15 @@ class Panda:
 				"user" : self.settings.getSetting( "proxy_user" ),
 				"pass" : self.settings.getSetting( "proxy_pass" )
 			}
-			self.pandora.set_proxy( "http://%(user)s:%(pass)s@%(host)s:%(port)s" % proxy_info )
+			if proxy_info.get("user"):
+				self.pandora.set_proxy("{user}:{pass}@{host}:{port}".format(**proxy_info))
+			else:
+				self.pandora.set_proxy("{host}:{port}".format(**proxy_info))
 
 		while not self.auth():
-			resp = xbmcgui.Dialog().yesno( _NAME, \
-					"Failed to authenticate listener.", \
-					"Check username/password and try again.", \
+			resp = xbmcgui.Dialog().yesno( _NAME,
+					"Failed to authenticate listener.",
+					"Check username/password and try again.",
 					"Show Settings?" )
 			if resp:
 				self.settings.openSettings()
@@ -144,14 +148,14 @@ class Panda:
 		dlg.update( 0 )
 		try:
 			self.pandora.connect(pithos.pandora.data.client_keys[client_id], user, pwd)
-		except PandoraError, e:
-			return 0;
+		except PandoraError:
+			return 0
 		dlg.close()
 		return 1
 
 	def playStation( self, stationId ):
 		self.curStation = stationId
-		station = self.pandora.get_station_by_id(self.curStation);
+		station = self.pandora.get_station_by_id(self.curStation)
 		dlg = xbmcgui.DialogProgress()
 		dlg.create( _NAME, "Opening Pandora station: " + station.name )
 		dlg.update( 0 )
@@ -172,7 +176,7 @@ class Panda:
 		if self.curStation == "":
 			raise PandaException()
 		items = []
-		station = self.pandora.get_station_by_id(self.curStation);
+		station = self.pandora.get_station_by_id(self.curStation)
 		songs = station.get_playlist()
 		for song in songs:
 			log( "Adding song '%s'" % song.title )
@@ -183,14 +187,14 @@ class Panda:
 			item.setIconImage( thumbnail )
 			item.setThumbnailImage( thumbnail )
 			item.setProperty( "Cover", thumbnail )
-			if song.rating_str != None:
+			if song.rating_str is not None:
 				item.setProperty( "Rating", song.rating_str )
 			else:
 				item.setProperty( "Rating", "" )
 			info = {
-				 "title"	:	song.title, \
-				 "artist"	:	song.artist, \
-				 "album"	:	song.album, \
+				 "title"	:	song.songName,
+				 "artist"	:	song.artist,
+				 "album"	:	song.album,
 				}
 			## HACK: set fictional duration to enable scrobbling
 			if self.settings.getSetting( "scrobble_hack" ) == "true":
@@ -198,7 +202,7 @@ class Panda:
 				info["duration"] = duration
 			log( "item info = %s" % info, xbmc.LOGDEBUG )
 			item.setInfo( "music", info )
-			items.append( ( song.audioUrl, item, song ) )
+			items.append((song.additionalAudioUrl, item, song))
 
 		self.playlist.extend( items )
 
@@ -245,12 +249,12 @@ class Panda:
 	def addFeedback( self, likeFlag ):
 		if not self.playing:
 			raise PandaException()
-		self.curSong[2].rate(likeFlag);
+		self.curSong[2].rate(likeFlag)
 
 	def addTiredSong( self ):
 		if not self.playing:
 			raise PandaException()
-		musicId = self.curSong[2].set_tired();
+		musicId = self.curSong[2].set_tired()
 
 	def main( self ):
 		if self.die:
@@ -277,14 +281,14 @@ class Panda:
 		if self.player and self.player.timer\
 				and self.player.timer.isAlive():
 			self.player.timer.stop()
-		if self.gui != None:
+		if self.gui is not None:
 			self.gui.close()
 		self.die = True
 
 if __name__ == '__main__':
 	if _settings.getSetting( "username" ) == "" or \
 		_settings.getSetting( "password" ) == "":
-		xbmcgui.Dialog().ok( __name__, \
+		xbmcgui.Dialog().ok( __name__,
 			"Username and/or password not specified" )
 		_settings.setSetting( "firstrun", "true" )
 	else:

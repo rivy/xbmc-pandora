@@ -1,22 +1,24 @@
 # -*- coding: utf-8; tab-width: 4; indent-tabs-mode: nil; -*-
 ### BEGIN LICENSE
 # Copyright (C) 2010 Kevin Mehall <km@kevinmehall.net>
-#This program is free software: you can redistribute it and/or modify it 
-#under the terms of the GNU General Public License version 3, as published 
+#This program is free software: you can redistribute it and/or modify it
+#under the terms of the GNU General Public License version 3, as published
 #by the Free Software Foundation.
 #
-#This program is distributed in the hope that it will be useful, but 
-#WITHOUT ANY WARRANTY; without even the implied warranties of 
-#MERCHANTABILITY, SATISFACTORY QUALITY, or FITNESS FOR A PARTICULAR 
+#This program is distributed in the hope that it will be useful, but
+#WITHOUT ANY WARRANTY; without even the implied warranties of
+#MERCHANTABILITY, SATISFACTORY QUALITY, or FITNESS FOR A PARTICULAR
 #PURPOSE.  See the GNU General Public License for more details.
 #
-#You should have received a copy of the GNU General Public License along 
+#You should have received a copy of the GNU General Public License along
 #with this program.  If not, see <http://www.gnu.org/licenses/>.
 ### END LICENSE
 
 from pithos.pandora.pandora import *
 from gi.repository import Gtk
 import logging
+
+TEST_FILE = "http://pithos.github.io/testfile.aac"
 
 class FakePandora(Pandora):
     def __init__(self):
@@ -105,18 +107,19 @@ class FakePandora(Pandora):
 
     def makeFakeSong(self, stationId):
         c = self.count()
+        audio_url = TEST_FILE + '?val='+'0'*48
         return {
             'albumName':"AlbumName",
             'artistName':"ArtistName",
             'audioUrlMap': {
                 'highQuality': {
-                    'audioUrl': 'http://pithos.github.io/testfile.aac?val='+'0'*48
+                    'audioUrl': audio_url
                 },
                 'mediumQuality': {
-                    'audioUrl': 'http://pithos.github.io/testfile.aac?val='+'0'*48
+                    'audioUrl': audio_url
                 },
                 'lowQuality': {
-                    'audioUrl': 'http://pithos.github.io/testfile.aac?val='+'0'*48
+                    'audioUrl': audio_url
                 },
             },
             'trackGain':0,
@@ -126,7 +129,7 @@ class FakePandora(Pandora):
             'songName': 'Test song %i'%c,
             'songDetailUrl': 'http://pithos.github.io/',
             'albumDetailUrl':'http://pithos.github.io/',
-            'albumArtUrl':'http://pithos.github.io/img/logo.png',
+            'albumArtUrl':'http://pithos.github.io/img/pithos_logo.png',
             'songExplorerUrl':'http://pithos.github.io/test-song.xml',
         }
 

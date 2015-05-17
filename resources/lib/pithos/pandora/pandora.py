@@ -23,6 +23,7 @@ import logging
 import time
 import urllib
 import urllib2
+import codecs
 
 # This is an implementation of the Pandora JSON API using Android partner
 # credentials.
@@ -43,6 +44,7 @@ API_ERROR_INVALID_AUTH_TOKEN = 1001
 API_ERROR_INVALID_LOGIN = 1002
 API_ERROR_LISTENER_NOT_AUTHORIZED = 1003
 API_ERROR_PARTNER_NOT_AUTHORIZED = 1010
+API_ERROR_PLAYLIST_EXCEEDED = 1039
 
 PLAYLIST_VALIDITY_TIME = 60*60*3
 
@@ -60,7 +62,7 @@ class PandoraAPIVersionError(PandoraError): pass
 class PandoraTimeout(PandoraNetError): pass
 
 def pad(s, l):
-    return s + "\0" * (l - len(s))
+    return s + b'\0' * (l - len(s))
 
 class Pandora(object):
     def __init__(self):
@@ -68,10 +70,10 @@ class Pandora(object):
         pass
 
     def pandora_encrypt(self, s):
-        return "".join([self.blowfish_encode.encrypt(pad(s[i:i+8], 8)).encode('hex') for i in xrange(0, len(s), 8)])
+        return b''.join([codecs.encode(self.blowfish_encode.encrypt(pad(s[i:i+8], 8)), 'hex_codec') for i in range(0, len(s), 8)])
 
     def pandora_decrypt(self, s):
-        return "".join([self.blowfish_decode.decrypt(pad(s[i:i+16].decode('hex'), 8)) for i in xrange(0, len(s), 16)]).rstrip('\x08')
+        return b''.join([self.blowfish_decode.decrypt(pad(codecs.decode(s[i:i+16], 'hex_codec'), 8)) for i in range(0, len(s), 16)]).rstrip(b'\x08')
 
     def json_call(self, method, args={}, https=False, blowfish=True):
         url_arg_strings = []
@@ -94,7 +96,7 @@ class Pandora(object):
             args['userAuthToken'] = self.userAuthToken
         elif self.partnerAuthToken:
             args['partnerAuthToken'] = self.partnerAuthToken
-        data = json.dumps(args)
+        data = json.dumps(args).encode('utf-8')
 
         logging.debug(url)
         logging.debug(data)
@@ -105,16 +107,16 @@ class Pandora(object):
         try:
             req = urllib2.Request(url, data, {'User-agent': USER_AGENT, 'Content-type': 'text/plain'})
             response = self.opener.open(req, timeout=HTTP_TIMEOUT)
-            text = response.read()
+            text = response.read().decode('utf-8')
         except urllib2.HTTPError as e:
             logging.error("HTTP error: %s", e)
             raise PandoraNetError(str(e))
         except urllib2.URLError as e:
             logging.error("Network error: %s", e)
-            if e.reason[0] == 'timed out':
+            if e.reason.strerror == 'timed out':
                 raise PandoraTimeout("Network error", submsg="Timeout")
             else:
-                raise PandoraNetError("Network error", submsg=e.reason[1])
+                raise PandoraNetError("Network error", submsg=e.reason.strerror)
 
         logging.debug(text)
 
@@ -146,8 +148,11 @@ class Pandora(object):
             elif code == API_ERROR_PARTNER_NOT_AUTHORIZED:
                 raise PandoraError("Login Error", code,
                     submsg="Invalid Pandora partner keys. A Pithos update may be required.")
+            elif code == API_ERROR_PLAYLIST_EXCEEDED:
+                raise PandoraError("Playlist Error", code,
+                    submsg="You have requested too many playlists. Try again later.")
             else:
-                raise PandoraError("Pandora returned an error", code, "%s (code %d)"%(msg, code))
+                raise PandoraError("Pandora returned an error", code, "%s (code %d)" % (msg, code))
 
         if 'result' in tree:
             return tree['result']
@@ -163,8 +168,8 @@ class Pandora(object):
         self.userAuthToken = self.time_offset = None
 
         self.rpcUrl = client['rpcUrl']
-        self.blowfish_encode = Blowfish(client['encryptKey'])
-        self.blowfish_decode = Blowfish(client['decryptKey'])
+        self.blowfish_encode = Blowfish(client['encryptKey'].encode('utf-8'))
+        self.blowfish_decode = Blowfish(client['decryptKey'].encode('utf-8'))
 
         partner = self.json_call('auth.partnerLogin', {
             'deviceModel': client['deviceModel'],
@@ -176,7 +181,7 @@ class Pandora(object):
         self.partnerId = partner['partnerId']
         self.partnerAuthToken = partner['partnerAuthToken']
 
-        pandora_time = int(self.pandora_decrypt(partner['syncTime'])[4:14])
+        pandora_time = int(self.pandora_decrypt(partner['syncTime'].encode('utf-8'))[4:14])
         self.time_offset = pandora_time - time.time()
         logging.info("Time offset is %s", self.time_offset)
 
@@ -252,9 +257,9 @@ class Station(object):
             self.pandora.json_call('station.transformSharedStation', {'stationToken': self.idToken})
             self.isCreator = True
 
-    def get_playlist(self):
+    def get_playlist(self, audio_fmt="HTTP_128_MP3"):
         logging.info("pandora: Get Playlist")
-        playlist = self.pandora.json_call('station.getPlaylist', {'stationToken': self.idToken}, https=True)
+        playlist = self.pandora.json_call('station.getPlaylist', {'stationToken': self.idToken, 'additionalAudioUrl': audio_fmt}, https=True)
         songs = []
         for i in playlist['items']:
             if 'songName' in i: # check for ads
@@ -290,8 +295,10 @@ class Song(object):
         self.songDetailURL = d['songDetailUrl']
         self.songExplorerUrl = d['songExplorerUrl']
         self.artRadio = d['albumArtUrl']
-
-        self.tired=False
+        self.additionalAudioUrl = d['additionalAudioUrl']
+        self.bitrate = None
+        self.is_ad = None  # None = we haven't checked, otherwise True/False
+        self.tired = False
         self.message=''
         self.start_time = None
         self.finished = False
@@ -311,7 +318,7 @@ class Song(object):
                 self._title = self.songName
             else:
                 try:
-                    xml_data = urllib.urlopen(self.songExplorerUrl)
+                    xml_data = urllib2.urlopen(self.songExplorerUrl)
                     dom = minidom.parseString(xml_data.read())
                     attr_value = dom.getElementsByTagName('songExplorer')[0].attributes['songTitle'].value
 
@@ -331,7 +338,7 @@ class Song(object):
         except KeyError:
             logging.warn("Unable to use audio format %s. Using %s",
                            quality, self.audioUrlMap.keys()[0])
-            return self.audioUrlMap.values()[0]['audioUrl']
+            return list(self.audioUrlMap.values())[0]['audioUrl']
 
     @property
     def station(self):
