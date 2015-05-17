@@ -101,18 +101,18 @@ class PandaGUI(xbmcgui.WindowXMLDialog):
 	def onAction(self, action):
 		buttonCode =  action.getButtonCode()
 		actionID   =  action.getId()
-		if ( actionID in ( ACTION_PREVIOUS_MENU, ACTION_NAV_BACK, \
+		if ( actionID in ( ACTION_PREVIOUS_MENU, ACTION_NAV_BACK,
                            ACTION_PARENT_DIR ) ):
 			if xbmc.getCondVisibility( 'Skin.HasSetting(PandoraVis)' ):
 				xbmc.executebuiltin( 'Skin.Reset(PandoraVis)' )
 				#xbmc.executebuiltin( "SetProperty(HidePlayer,False)" )
 			else:
 				self.panda.quit()
-		elif (actionID == ACTION_NEXT_ITEM ):
+		elif actionID == ACTION_NEXT_ITEM:
 			self.panda.skipSong()
 
 	def onClick(self, controlID):
-		if (controlID == STATION_LIST_ID): # station list control
+		if controlID == STATION_LIST_ID: # station list control
 			selItem = self.list.getSelectedItem()
 			self.panda.playStation( selItem.getProperty("stationId") )
 		elif self.panda.playing:
